@@ -1,0 +1,87 @@
+import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+
+import { history, fetchWrapper } from "../helpers";
+
+// create slice
+
+const name = "auth";
+const initialState = createInitialState();
+const reducers = createReducers();
+const extraActions = createExtraActions();
+const extraReducers = createExtraReducers();
+const slice = createSlice({ name, initialState, reducers, extraReducers });
+
+// exports
+
+export const authActions = { ...slice.actions, ...extraActions };
+export const authReducer = slice.reducer;
+
+// implementation
+
+function createInitialState() {
+  return {
+    // initialize state from local storage to enable user to stay logged in
+    user: JSON.parse(localStorage.getItem("user") as any ),
+    error: null,
+  };
+}
+
+function createReducers() {
+  return {
+    logout,
+  };
+
+  function logout(state : any) {
+    state.user = null;
+    localStorage.removeItem("user");
+    localStorage.removeItem("todos");
+    history.navigate("/login");
+  }
+}
+
+function createExtraActions() {
+  const baseUrl = `${process.env.REACT_APP_API_URL}/users`;
+
+  function login() {
+    return createAsyncThunk(
+      `${name}/login`,
+      async ({ username, password } : any) =>
+        await fetchWrapper.post(`${baseUrl}/authenticate`, {
+          username,
+          password,
+        })
+    );
+  }
+  return {
+    login: login(),
+  };
+}
+
+function createExtraReducers() {
+  function login() {
+    var { pending, fulfilled, rejected } : any = extraActions.login;
+    return {
+      [pending]: (state: any) => {
+        state.error = null;
+      },
+      [fulfilled]: (state: any, action: any) => {
+        const user = action.payload;
+
+        // store user details and jwt token in local storage to keep user logged in between page refreshes
+        localStorage.setItem("user", JSON.stringify(user));
+        state.user = user;
+
+        // get return url from location state or default to home page
+        const { from } = history.location.state || { from: { pathname: "/" } };
+        history.navigate(from);
+      },
+      [rejected]: (state: any, action: any) => {
+        state.error = action.error;
+      },
+    };
+  }
+
+  return {
+    ...login(),
+  };
+}
